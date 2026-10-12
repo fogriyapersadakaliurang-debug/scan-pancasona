@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#050507">
+  <title>Pancasona Health Club - Live QR Check-in</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --red: #E50914;
+      --red-dark: #B81D24;
+      --bg: #050507;
+      --panel: #111115;
+      --panel2: #18181e;
+      --border: #292932;
+      --muted: #9696a3;
+      --green: #22c55e;
+      --yellow: #fbbf24;
+      --blue: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: #fff; font-family: Inter, sans-serif; }
+    body { min-height: 100vh; min-height: 100dvh; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .heading { font-family: Montserrat, sans-serif; }
+    .app { width: min(760px, 100%); margin: 0 auto; padding: 18px 14px 36px; }
+    .topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:16px; }
+    .brand { display:flex; gap:10px; align-items:center; }
+    .brand-mark { width:42px; height:42px; border-radius:12px; display:grid; place-items:center; background:#08080a; border:1px solid rgba(229,9,20,.5); box-shadow:0 0 22px rgba(229,9,20,.2); color:var(--red); font-size:23px; }
+    .brand h1 { margin:0; font-size:15px; letter-spacing:.08em; font-weight:900; }
+    .brand p { margin:3px 0 0; font-size:9px; color:var(--red); letter-spacing:.16em; font-weight:800; }
+    .clock { text-align:right; }
+    .clock-time { font-family:Montserrat,sans-serif; font-size:17px; font-weight:900; }
+    .clock-date { color:var(--muted); font-size:10px; margin-top:3px; }
+    .status-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:12px 0; }
+    .pill { display:inline-flex; align-items:center; gap:7px; padding:8px 10px; border-radius:999px; border:1px solid var(--border); background:var(--panel); font-size:10px; font-weight:800; }
+    .dot { width:8px; height:8px; border-radius:50%; background:#6b7280; }
+    .dot.ok { background:var(--green); box-shadow:0 0 10px rgba(34,197,94,.65); }
+    .dot.warn { background:var(--yellow); }
+    .settings-btn { border:1px solid var(--border); background:var(--panel); color:#ddd; border-radius:10px; padding:8px 10px; font-size:11px; font-weight:700; }
+    .hero { text-align:center; margin:16px 0 14px; }
+    .hero h2 { margin:0; font-family:Montserrat,sans-serif; font-size:clamp(24px,7vw,34px); line-height:1.05; font-weight:900; text-transform:uppercase; }
+    .hero p { margin:8px auto 0; max-width:520px; color:var(--muted); font-size:12px; line-height:1.5; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:22px; padding:16px; }
+    .scanner-panel { border-color:rgba(229,9,20,.55); box-shadow:0 0 28px rgba(229,9,20,.1); }
+    #reader { width:100%; overflow:hidden; border-radius:16px; background:#000; min-height:280px; }
+    #reader video { border-radius:16px !important; object-fit:cover !important; }
+    #reader__scan_region { min-height:260px; background:#000 !important; }
+    #reader__dashboard { display:none !important; }
+    .scanner-placeholder { min-height:280px; display:grid; place-items:center; text-align:center; border:2px dashed rgba(229,9,20,.6); border-radius:16px; background:#08080a; padding:24px; }
+    .scanner-placeholder .camera { font-size:54px; color:var(--red); line-height:1; }
+    .scanner-placeholder strong { display:block; margin-top:10px; font-family:Montserrat,sans-serif; font-size:14px; }
+    .scanner-placeholder span { display:block; margin-top:6px; color:var(--muted); font-size:10px; line-height:1.45; }
+    .primary { width:100%; border:0; border-radius:14px; padding:14px 16px; background:var(--red); color:#fff; font-weight:900; font-size:13px; box-shadow:0 10px 30px rgba(229,9,20,.22); }
+    .primary:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
+    .secondary { width:100%; border:1px solid var(--border); border-radius:14px; padding:13px 16px; background:#1b1b21; color:#fff; font-weight:800; font-size:12px; }
+    .danger { background:#2a1114; color:#fecaca; border:1px solid rgba(239,68,68,.4); }
+    .actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+    .hint { text-align:center; margin-top:10px; color:#777784; font-size:9px; line-height:1.45; }
+    .mode-tabs { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--border); border-radius:13px; overflow:hidden; margin-top:14px; background:#09090b; }
+    .mode-tabs button { border:0; padding:11px 10px; background:transparent; color:#8f8f9c; font-weight:800; font-size:11px; }
+    .mode-tabs button.active { background:var(--red); color:#fff; }
+    .manual { display:none; margin-top:12px; gap:8px; }
+    .manual.show { display:flex; }
+    .manual input { min-width:0; flex:1; background:#09090c; border:1px solid var(--border); color:#fff; border-radius:12px; padding:13px 14px; outline:none; text-transform:uppercase; }
+    .manual input:focus { border-color:var(--red); }
+    .manual button { width:auto; padding:0 18px; }
+    .message { display:none; margin-top:12px; padding:12px 13px; border-radius:13px; font-size:11px; line-height:1.5; font-weight:600; }
+    .message.show { display:block; }
+    .message.info { background:rgba(59,130,246,.09); border:1px solid rgba(59,130,246,.28); color:#bfdbfe; }
+    .message.error { background:rgba(239,68,68,.09); border:1px solid rgba(239,68,68,.32); color:#fecaca; }
+    .message.success { background:rgba(34,197,94,.09); border:1px solid rgba(34,197,94,.3); color:#bbf7d0; }
+    .result { display:none; margin-top:16px; }
+    .result.show { display:block; }
+    .result-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+    .grant { font-family:Montserrat,sans-serif; font-weight:900; font-size:12px; padding:7px 10px; border-radius:999px; }
+    .grant.ok { background:var(--green); color:#051009; }
+    .grant.no { background:var(--red); color:#fff; }
+    .timestamp { font-family:monospace; font-size:10px; color:var(--muted); }
+    .profile { display:grid; grid-template-columns:86px 1fr; gap:14px; align-items:center; margin-top:14px; }
+    .avatar { width:86px; height:86px; border-radius:18px; object-fit:cover; border:2px solid var(--red); background:#08080a; }
+    .profile h3 { font-family:Montserrat,sans-serif; font-weight:900; font-size:21px; margin:0; text-transform:uppercase; }
+    .profile .id { color:var(--red); font-family:monospace; font-weight:900; margin-top:4px; font-size:13px; }
+    .package { display:inline-block; margin-top:7px; padding:5px 9px; border:1px solid rgba(251,191,36,.3); background:rgba(251,191,36,.07); color:var(--yellow); border-radius:999px; font-size:9px; font-weight:900; text-transform:uppercase; }
+    .details { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+    .detail { background:#0b0b0e; border:1px solid #22222a; border-radius:12px; padding:10px; }
+    .detail small { display:block; color:#777784; text-transform:uppercase; font-size:8px; font-weight:800; letter-spacing:.05em; }
+    .detail strong { display:block; margin-top:4px; font-size:11px; line-height:1.35; word-break:break-word; }
+    .expiry { margin-top:10px; padding:12px; border-radius:13px; background:#09090b; border:1px solid var(--border); display:flex; justify-content:space-between; gap:12px; align-items:center; }
+    .expiry small { color:#777784; font-size:8px; font-weight:800; text-transform:uppercase; }
+    .expiry strong { display:block; margin-top:3px; font-family:Montserrat,sans-serif; font-size:16px; }
+    .expiry-status { font-weight:900; font-size:11px; color:var(--green); }
+    .member-card-wrap { margin-top:14px; }
+    .member-card-label { text-align:center; color:#777784; font-size:9px; font-weight:800; text-transform:uppercase; margin-bottom:7px; }
+    .member-card { aspect-ratio:1.727/1; width:100%; max-width:430px; margin:0 auto; border-radius:18px; background:linear-gradient(135deg,#0f0f13 0%,#1a1a24 50%,#0a0a0d 100%); border:1px solid rgba(229,9,20,.42); padding:17px; position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 0 24px rgba(229,9,20,.14); }
+    .member-card::before { content:""; position:absolute; left:0; right:0; top:0; height:5px; background:repeating-linear-gradient(-45deg,var(--red),var(--red) 8px,#000 8px,#000 16px); }
+    .card-top,.card-bottom { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; position:relative; z-index:1; }
+    .card-brand { font-family:Montserrat,sans-serif; font-weight:900; font-size:12px; letter-spacing:.06em; }
+    .card-sub { color:var(--red); font-size:6px; font-weight:800; letter-spacing:.16em; margin-top:2px; }
+    .card-hotel { text-align:right; color:#888895; font-size:7px; font-weight:800; }
+    .card-mid { display:flex; justify-content:space-between; align-items:center; gap:12px; position:relative; z-index:1; }
+    .chip { width:38px; height:29px; border-radius:6px; background:linear-gradient(90deg,#ca8a04,#fde68a); border:1px solid rgba(253,230,138,.6); }
+    .qr-box { background:#fff; padding:4px; border:2px solid var(--red); border-radius:9px; min-width:70px; min-height:70px; display:grid; place-items:center; }
+    .card-name-label { color:#888895; font-size:6px; letter-spacing:.13em; }
+    .card-name { font-family:Montserrat,sans-serif; font-size:13px; font-weight:900; margin-top:2px; text-transform:uppercase; }
+    .card-id { font-family:monospace; color:var(--red); font-size:8px; font-weight:900; margin-top:2px; }
+    .card-exp { text-align:right; }
+    .card-exp small { color:#888895; font-size:6px; }
+    .card-exp strong { display:block; font-family:monospace; font-size:9px; margin-top:2px; }
+    .finish { margin-top:15px; background:var(--green); color:#041108; box-shadow:0 10px 30px rgba(34,197,94,.16); }
+    .modal-backdrop { position:fixed; inset:0; z-index:99; background:rgba(0,0,0,.82); backdrop-filter:blur(7px); display:none; align-items:center; justify-content:center; padding:16px; }
+    .modal-backdrop.show { display:flex; }
+    .modal { width:min(520px,100%); background:#131317; border:1px solid var(--border); border-radius:20px; padding:18px; box-shadow:0 22px 70px rgba(0,0,0,.55); }
+    .modal h3 { margin:0; font-family:Montserrat,sans-serif; font-weight:900; font-size:17px; }
+    .modal p { color:var(--muted); font-size:11px; line-height:1.55; }
+    .field label { display:block; color:#a7a7b2; font-size:10px; font-weight:800; margin-bottom:6px; }
+    .field input { width:100%; background:#09090c; border:1px solid var(--border); color:#fff; border-radius:12px; padding:12px; outline:none; font-size:11px; }
+    .field input:focus { border-color:var(--red); }
+    .modal-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:13px; }
+    #gasBridge { width:1px; height:1px; opacity:0; pointer-events:none; position:fixed; left:-9999px; top:-9999px; border:0; }
+    .footer { text-align:center; color:#555561; font-size:9px; line-height:1.5; margin-top:16px; }
+    @media (max-width:520px) {
+      .app { padding:14px 11px 28px; }
+      .topbar { align-items:center; }
+      .brand-mark { width:38px; height:38px; }
+      .brand h1 { font-size:13px; }
+      .clock-time { font-size:15px; }
+      .actions { grid-template-columns:1fr; }
+      .profile { grid-template-columns:72px 1fr; }
+      .avatar { width:72px; height:72px; border-radius:15px; }
+      .profile h3 { font-size:17px; }
+      .details { grid-template-columns:1fr 1fr; }
+      .member-card { padding:13px; }
+      .qr-box { min-width:60px; min-height:60px; }
+    }
+  </style>
+</head>
+<body>
+  <iframe id="gasBridge" title="Pancasona backend bridge"></iframe>
+
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">◉</div>
+        <div>
+          <h1 class="heading">PANCASONA</h1>
+          <p>HEALTH CLUB • LIVE CHECK-IN</p>
+        </div>
+      </div>
+      <div class="clock">
+        <div id="clockTime" class="clock-time">--:--:--</div>
+        <div id="clockDate" class="clock-date">Memuat tanggal...</div>
+      </div>
+    </header>
+
+    <div class="status-row">
+      <div class="pill"><span id="backendDot" class="dot"></span><span id="backendText">Backend belum diatur</span></div>
+      <button class="settings-btn" type="button" onclick="openSettings()">⚙ Pengaturan</button>
+    </div>
+
+    <section class="hero">
+      <h2>Scanner Gate Check-in<br>Tamu & Member</h2>
+      <p>Scan QR kartu member menggunakan kamera HP. Check-in yang berhasil otomatis masuk ke database Kunjungan Google Sheets.</p>
+    </section>
+
+    <section id="scannerPanel" class="panel scanner-panel">
+      <div id="readerPlaceholder" class="scanner-placeholder">
+        <div>
+          <div class="camera">▣</div>
+          <strong>KAMERA LIVE SIAP DIGUNAKAN</strong>
+          <span>Buka halaman ini langsung melalui Chrome/Safari. Tekan tombol Mulai Scan Live untuk meminta izin kamera belakang HP.</span>
+        </div>
+      </div>
+      <div id="reader" style="display:none"></div>
+
+      <div class="actions">
+        <button id="startBtn" class="primary" type="button" onclick="startLiveScanner()" disabled>📷 MULAI SCAN LIVE</button>
+        <button id="stopBtn" class="secondary" type="button" onclick="stopLiveScanner()" disabled>■ Hentikan Kamera</button>
+      </div>
+
+      <div class="mode-tabs">
+        <button id="tabQr" class="active" type="button" onclick="setMode('QR')">▣ QR Code</button>
+        <button id="tabMember" type="button" onclick="setMode('MEMBER_ID')">⌨ Kode Member</button>
+      </div>
+
+      <div id="manualArea" class="manual">
+        <input id="memberCodeInput" type="text" inputmode="text" autocomplete="off" placeholder="Contoh: PC-8847321">
+        <button class="primary" type="button" onclick="submitMemberCode()">Check-in</button>
+      </div>
+
+      <div id="scanMessage" class="message info"></div>
+      <p class="hint">Jika kamera tetap tidak muncul di GitHub Pages, pastikan URL memakai <b>https://</b>, buka langsung di Chrome/Safari, lalu izinkan Camera untuk situs GitHub Pages Anda.</p>
+    </section>
+
+    <section id="resultPanel" class="panel result">
+      <div class="result-head">
+        <span id="accessBadge" class="grant ok">CHECK-IN BERHASIL</span>
+        <span id="checkinTimestamp" class="timestamp">-</span>
+      </div>
+
+      <div class="profile">
+        <img id="memberAvatar" class="avatar" alt="Foto member">
+        <div>
+          <h3 id="memberName">-</h3>
+          <div id="memberId" class="id">-</div>
+          <span id="memberPackage" class="package">-</span>
+        </div>
+      </div>
+
+      <div class="details">
+        <div class="detail"><small>Jenis Kelamin</small><strong id="memberGender">-</strong></div>
+        <div class="detail"><small>WhatsApp / HP</small><strong id="memberPhone">-</strong></div>
+        <div class="detail"><small>Tanggal Lahir</small><strong id="memberDob">-</strong></div>
+        <div class="detail"><small>Mulai Membership</small><strong id="memberStart">-</strong></div>
+        <div class="detail" style="grid-column:1/-1"><small>Alamat</small><strong id="memberAddress">-</strong></div>
+      </div>
+
+      <div class="expiry">
+        <div><small>Masa Berlaku Sampai</small><strong id="memberExpiry">-</strong></div>
+        <div id="memberStatus" class="expiry-status">AKTIF</div>
+      </div>
+
+      <div class="member-card-wrap">
+        <div class="member-card-label">Kartu Member Digital</div>
+        <div class="member-card">
+          <div class="card-top">
+            <div><div class="card-brand">PANCASONA</div><div class="card-sub">HEALTH CLUB</div></div>
+            <div class="card-hotel">GRIYA PERSADA<br>KALIURANG • YOGYAKARTA</div>
+          </div>
+          <div class="card-mid">
+            <div class="chip"></div>
+            <div id="memberQr" class="qr-box"></div>
+          </div>
+          <div class="card-bottom">
+            <div><div class="card-name-label">MEMBER NAME</div><div id="cardName" class="card-name">-</div><div id="cardId" class="card-id">-</div></div>
+            <div class="card-exp"><small>EXPIRES</small><strong id="cardExpiry">-</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <button id="finishBtn" class="primary finish" type="button" onclick="finishCheckin()">SELESAI / KELUAR — SILAKAN MASUK GYM</button>
+    </section>
+
+    <div class="footer">Pancasona Health Club • Scanner GitHub Pages • Database Google Sheets melalui Google Apps Script</div>
+  </main>
+
+  <div id="settingsModal" class="modal-backdrop">
+    <div class="modal">
+      <h3>Hubungkan ke Apps Script</h3>
+      <p>Masukkan URL deployment Web App Apps Script yang berakhiran <b>/exec</b>. URL disimpan hanya di browser HP ini.</p>
+      <div class="field">
+        <label>APPS SCRIPT WEB APP URL</label>
+        <input id="backendUrlInput" type="url" spellcheck="false" placeholder="https://script.google.com/macros/s/...../exec">
+      </div>
+      <div class="modal-actions">
+        <button class="secondary" type="button" onclick="closeSettings()">Batal</button>
+        <button class="primary" type="button" onclick="saveBackendUrl()">Simpan & Hubungkan</button>
+      </div>
+      <p style="margin-bottom:0">Deployment backend harus berisi file <b>Bridge.html</b> dari paket ini dan sudah di-deploy ulang sebagai versi baru.</p>
+    </div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  const STORAGE_KEY = 'pancasona_apps_script_url_v1';
+  const BRIDGE_SOURCE = 'PANCASONA_GAS_BRIDGE';
+  const SCANNER_SOURCE = 'PANCASONA_GITHUB_SCANNER';
+  const pending = new Map();
+
+  let backendUrl = localStorage.getItem(STORAGE_KEY) || '';
+  let bridgeReady = false;
+  let html5QrCode = null;
+  let scannerRunning = false;
+  let processingScan = false;
+  let mode = 'QR';
+  let restartAfterFinish = false;
+  let lastDecodedValue = '';
+  let lastDecodedAt = 0;
+
+  window.addEventListener('DOMContentLoaded', function () {
+    updateClock();
+    setInterval(updateClock, 1000);
+    document.getElementById('memberCodeInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') submitMemberCode();
+    });
+
+    if (!window.isSecureContext) {
+      showMessage('Halaman tidak berada pada secure context. Kamera live membutuhkan HTTPS. Gunakan URL GitHub Pages https://...', 'error');
+    }
+
+    if (backendUrl) connectBridge();
+    else openSettings(true);
+  });
+
+  window.addEventListener('message', function (event) {
+    const data = event.data || {};
+    if (data.source !== BRIDGE_SOURCE) return;
+
+    if (data.type === 'READY') {
+      bridgeReady = true;
+      pingBackend();
+      return;
+    }
+
+    if (!data.requestId || !pending.has(data.requestId)) return;
+    const task = pending.get(data.requestId);
+    pending.delete(data.requestId);
+    clearTimeout(task.timer);
+    if (data.ok) task.resolve(data.result);
+    else task.reject(new Error(data.error || 'Backend Apps Script gagal merespons.'));
+  });
+
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clockTime').textContent = new Intl.DateTimeFormat('id-ID', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+      timeZone: 'Asia/Jakarta'
+    }).format(now).replace(/\./g, ':') + ' WIB';
+    document.getElementById('clockDate').textContent = new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta'
+    }).format(now);
+  }
+
+  function normalizeBackendUrl(raw) {
+    raw = String(raw || '').trim();
+    if (!raw) return '';
+    try {
+      const url = new URL(raw);
+      if (url.protocol !== 'https:') throw new Error('URL harus HTTPS.');
+      return url.origin + url.pathname.replace(/\/$/, '');
+    } catch (e) {
+      throw new Error('URL Apps Script tidak valid. Gunakan URL deployment yang berakhiran /exec.');
+    }
+  }
+
+  function bridgeUrl() {
+    const url = new URL(backendUrl);
+    url.searchParams.set('mode', 'bridge');
+    return url.toString();
+  }
+
+  function setBackendStatus(state, text) {
+    const dot = document.getElementById('backendDot');
+    dot.className = 'dot' + (state === 'ok' ? ' ok' : state === 'warn' ? ' warn' : '');
+    document.getElementById('backendText').textContent = text;
+    document.getElementById('startBtn').disabled = state !== 'ok';
+  }
+
+  function connectBridge() {
+    bridgeReady = false;
+    setBackendStatus('warn', 'Menghubungkan backend...');
+    const iframe = document.getElementById('gasBridge');
+    iframe.src = 'about:blank';
+    setTimeout(function () {
+      iframe.src = bridgeUrl();
+    }, 50);
+    setTimeout(function () {
+      if (!bridgeReady) {
+        setBackendStatus('bad', 'Backend belum tersambung');
+        showMessage('Bridge Apps Script tidak merespons. Pastikan deployment terbaru sudah memakai Bridge.html dan URL /exec benar.', 'error');
+      }
+    }, 12000);
+  }
+
+  function makeRequestId() {
+    return 'REQ-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function bridgeCall(action, payload) {
+    return new Promise(function (resolve, reject) {
+      if (!backendUrl || !bridgeReady) {
+        reject(new Error('Backend belum tersambung. Buka Pengaturan dan masukkan URL Apps Script.'));
+        return;
+      }
+      const iframe = document.getElementById('gasBridge');
+      if (!iframe.contentWindow) {
+        reject(new Error('Bridge backend belum siap.'));
+        return;
+      }
+      const requestId = makeRequestId();
+      const timer = setTimeout(function () {
+        if (pending.has(requestId)) {
+          pending.delete(requestId);
+          reject(new Error('Timeout saat menghubungi Apps Script. Periksa koneksi internet.'));
+        }
+      }, 20000);
+      pending.set(requestId, { resolve: resolve, reject: reject, timer: timer });
+      iframe.contentWindow.postMessage({
+        source: SCANNER_SOURCE,
+        requestId: requestId,
+        action: action,
+        payload: payload || {}
+      }, '*');
+    });
+  }
+
+  async function pingBackend() {
+    try {
+      const info = await bridgeCall('ping', {});
+      if (!info || !info.success) throw new Error('Database tidak siap.');
+      setBackendStatus('ok', 'Google Sheets terhubung');
+      showMessage('Backend tersambung ke database: ' + (info.databaseName || 'Pancasona Health Club Database') + '.', 'success');
+    } catch (e) {
+      setBackendStatus('bad', 'Backend gagal tersambung');
+      showMessage(e.message, 'error');
+    }
+  }
+
+  window.openSettings = function (force) {
+    document.getElementById('backendUrlInput').value = backendUrl;
+    document.getElementById('settingsModal').classList.add('show');
+    if (force) document.querySelector('#settingsModal .secondary').style.visibility = 'hidden';
+    else document.querySelector('#settingsModal .secondary').style.visibility = 'visible';
+  };
+
+  window.closeSettings = function () {
+    if (!backendUrl) return;
+    document.getElementById('settingsModal').classList.remove('show');
+  };
+
+  window.saveBackendUrl = function () {
+    try {
+      const value = normalizeBackendUrl(document.getElementById('backendUrlInput').value);
+      if (!/\/exec$/i.test(value)) {
+        throw new Error('Gunakan URL deployment Web App yang berakhiran /exec, bukan URL editor atau /dev.');
+      }
+      backendUrl = value;
+      localStorage.setItem(STORAGE_KEY, backendUrl);
+      document.getElementById('settingsModal').classList.remove('show');
+      connectBridge();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  window.setMode = async function (newMode) {
+    mode = newMode;
+    document.getElementById('tabQr').classList.toggle('active', mode === 'QR');
+    document.getElementById('tabMember').classList.toggle('active', mode === 'MEMBER_ID');
+    document.getElementById('manualArea').classList.toggle('show', mode === 'MEMBER_ID');
+    if (mode === 'MEMBER_ID') {
+      await stopLiveScanner();
+      setTimeout(function () { document.getElementById('memberCodeInput').focus(); }, 50);
+    }
+  };
+
+  window.startLiveScanner = async function () {
+    if (scannerRunning || processingScan) return;
+    if (!bridgeReady) {
+      showMessage('Backend belum tersambung.', 'error');
+      return;
+    }
+    if (!window.isSecureContext) {
+      showMessage('Kamera live membutuhkan HTTPS. Buka URL GitHub Pages yang dimulai https://', 'error');
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showMessage('Browser ini tidak menyediakan akses kamera live. Gunakan Chrome/Safari terbaru.', 'error');
+      return;
+    }
+    if (!window.Html5Qrcode) {
+      showMessage('Library QR scanner belum termuat. Periksa internet lalu refresh halaman.', 'error');
+      return;
+    }
+
+    setMode('QR');
+    document.getElementById('readerPlaceholder').style.display = 'none';
+    document.getElementById('reader').style.display = 'block';
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    showMessage('Meminta izin kamera belakang HP...', 'info');
+
+    try {
+      html5QrCode = html5QrCode || new Html5Qrcode('reader', {
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        verbose: false
+      });
+
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        {
+          fps: 12,
+          qrbox: function (viewfinderWidth, viewfinderHeight) {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const edge = Math.floor(Math.min(280, minEdge * 0.72));
+            return { width: edge, height: edge };
+          },
+          aspectRatio: 1.0,
+          disableFlip: false
+        },
+        onQrDecoded,
+        function () { /* scan miss sengaja diabaikan */ }
+      );
+
+      scannerRunning = true;
+      restartAfterFinish = true;
+      showMessage('Kamera aktif. Arahkan QR kartu member ke kotak scanner.', 'success');
+    } catch (e) {
+      scannerRunning = false;
+      document.getElementById('reader').style.display = 'none';
+      document.getElementById('readerPlaceholder').style.display = 'grid';
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+      const msg = String((e && e.message) || e || 'Kamera tidak dapat dibuka.');
+      showMessage('Kamera live gagal dibuka: ' + msg + '. Periksa Site settings → Camera → Allow untuk halaman GitHub Pages ini.', 'error');
+    }
+  };
+
+  window.stopLiveScanner = async function () {
+    restartAfterFinish = false;
+    await stopScannerInternal();
+  };
+
+  async function stopScannerInternal() {
+    if (html5QrCode && scannerRunning) {
+      try { await html5QrCode.stop(); } catch (e) { /* ignore */ }
+      try { await html5QrCode.clear(); } catch (e) { /* ignore */ }
+    }
+    scannerRunning = false;
+    document.getElementById('reader').style.display = 'none';
+    document.getElementById('readerPlaceholder').style.display = 'grid';
+    document.getElementById('startBtn').disabled = !bridgeReady;
+    document.getElementById('stopBtn').disabled = true;
+  }
+
+  async function onQrDecoded(decodedText) {
+    if (processingScan) return;
+    const now = Date.now();
+    if (decodedText === lastDecodedValue && now - lastDecodedAt < 5000) return;
+    lastDecodedValue = decodedText;
+    lastDecodedAt = now;
+    processingScan = true;
+    const shouldRestart = scannerRunning;
+    restartAfterFinish = shouldRestart;
+    await stopScannerInternal();
+    showMessage('QR terbaca. Memeriksa data member...', 'info');
+    try {
+      await doCheckin(decodedText, 'BARCODE');
+    } finally {
+      processingScan = false;
+    }
+  }
+
+  window.submitMemberCode = async function () {
+    if (processingScan) return;
+    const value = String(document.getElementById('memberCodeInput').value || '').trim().toUpperCase();
+    if (!value) {
+      showMessage('Masukkan kode member terlebih dahulu.', 'error');
+      return;
+    }
+    processingScan = true;
+    restartAfterFinish = false;
+    showMessage('Memeriksa kode member...', 'info');
+    try {
+      await doCheckin(value, 'MEMBER_ID');
+    } finally {
+      processingScan = false;
+    }
+  };
+
+  async function doCheckin(value, method) {
+    try {
+      const result = await bridgeCall('checkMember', { value: value, method: method });
+      if (!result) throw new Error('Respons backend kosong.');
+      if (!result.success || !result.found) {
+        showMessage(result.message || 'Member tidak ditemukan.', 'error');
+        return;
+      }
+      renderMemberResult(result);
+      if (result.accessGranted) {
+        showMessage('Check-in berhasil. Kunjungan sudah masuk ke Google Sheets.', 'success');
+      } else {
+        showMessage(result.message || 'Akses gym ditolak.', 'error');
+      }
+    } catch (e) {
+      showMessage(e.message || String(e), 'error');
+    }
+  }
+
+  function renderMemberResult(result) {
+    const m = result.member || {};
+    const visit = result.visit || {};
+    const granted = !!result.accessGranted;
+    const panel = document.getElementById('resultPanel');
+    panel.classList.add('show');
+
+    const badge = document.getElementById('accessBadge');
+    badge.className = 'grant ' + (granted ? 'ok' : 'no');
+    badge.textContent = granted ? 'CHECK-IN BERHASIL • SILAKAN MASUK' : 'ACCESS DENIED';
+
+    const timeText = visit.date && visit.time
+      ? formatDateId(visit.date) + ' • ' + visit.time + ' WIB'
+      : new Intl.DateTimeFormat('id-ID', { dateStyle:'medium', timeStyle:'medium', timeZone:'Asia/Jakarta' }).format(new Date()) + ' WIB';
+    document.getElementById('checkinTimestamp').textContent = timeText;
+
+    document.getElementById('memberAvatar').src = m.avatar || defaultAvatar(m.gender);
+    document.getElementById('memberName').textContent = m.nama || '-';
+    document.getElementById('memberId').textContent = m.id || '-';
+    document.getElementById('memberPackage').textContent = m.package || '-';
+    document.getElementById('memberGender').textContent = m.gender || '-';
+    document.getElementById('memberPhone').textContent = m.phone || '-';
+    document.getElementById('memberDob').textContent = formatDateId(m.dob);
+    document.getElementById('memberStart').textContent = formatDateId(m.start);
+    document.getElementById('memberAddress').textContent = m.address || '-';
+    document.getElementById('memberExpiry').textContent = formatDateId(m.expiry);
+    const status = document.getElementById('memberStatus');
+    status.textContent = m.status || (granted ? 'AKTIF' : 'EXPIRED');
+    status.style.color = granted ? 'var(--green)' : 'var(--red)';
+
+    document.getElementById('cardName').textContent = m.nama || '-';
+    document.getElementById('cardId').textContent = m.id || '-';
+    document.getElementById('cardExpiry').textContent = formatDateId(m.expiry).toUpperCase();
+    renderMemberQr(m.barcodeValue);
+
+    const finishBtn = document.getElementById('finishBtn');
+    finishBtn.textContent = granted ? 'SELESAI / KELUAR — SILAKAN MASUK GYM' : 'KELUAR / TUTUP';
+    finishBtn.style.background = granted ? 'var(--green)' : 'var(--red)';
+    finishBtn.style.color = granted ? '#041108' : '#fff';
+
+    panel.scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  function renderMemberQr(value) {
+    const el = document.getElementById('memberQr');
+    el.innerHTML = '';
+    if (!value || !window.QRCode) {
+      el.textContent = 'QR';
+      return;
+    }
+    new QRCode(el, {
+      text: value,
+      width: 62,
+      height: 62,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+
+  window.finishCheckin = async function () {
+    document.getElementById('resultPanel').classList.remove('show');
+    document.getElementById('memberCodeInput').value = '';
+    lastDecodedValue = '';
+    lastDecodedAt = 0;
+    window.scrollTo({ top:0, behavior:'smooth' });
+    showMessage('Siap untuk member berikutnya.', 'info');
+    const restart = restartAfterFinish && mode === 'QR';
+    restartAfterFinish = false;
+    if (restart) {
+      setTimeout(function () { startLiveScanner(); }, 450);
+    }
+  };
+
+  function formatDateId(value) {
+    if (!value) return '-';
+    const parts = String(value).slice(0,10).split('-');
+    if (parts.length !== 3) return String(value);
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    if (isNaN(d)) return String(value);
+    return new Intl.DateTimeFormat('id-ID', { day:'2-digit', month:'short', year:'numeric' }).format(d);
+  }
+
+  function defaultAvatar(gender) {
+    return gender === 'Wanita'
+      ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80'
+      : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80';
+  }
+
+  function showMessage(text, type) {
+    const el = document.getElementById('scanMessage');
+    el.textContent = text || '';
+    el.className = 'message show ' + (type || 'info');
+  }
+})();
+</script>
+</body>
+</html>
