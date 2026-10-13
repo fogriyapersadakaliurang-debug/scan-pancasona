@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     :root {
@@ -51,6 +52,12 @@
     .scanner-panel { border-color:rgba(229,9,20,.55); box-shadow:0 0 28px rgba(229,9,20,.1); }
     #reader { width:100%; overflow:hidden; border-radius:16px; background:#000; min-height:280px; }
     #reader video { border-radius:16px !important; object-fit:cover !important; }
+    .live-reader-wrap { position:relative; width:100%; overflow:hidden; border-radius:16px; background:#000; min-height:280px; }
+    .live-reader-wrap video { display:block; width:100%; min-height:280px; max-height:62vh; object-fit:cover; background:#000; }
+    .scan-guide { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; }
+    .scan-guide-box { width:min(72vw,280px); aspect-ratio:1; border:3px solid rgba(229,9,20,.95); border-radius:20px; box-shadow:0 0 0 9999px rgba(0,0,0,.18),0 0 24px rgba(229,9,20,.34); position:relative; }
+    .scan-guide-box::after { content:""; position:absolute; left:8%; right:8%; top:50%; height:2px; background:#E50914; box-shadow:0 0 10px rgba(229,9,20,.9); animation:scanLine 1.6s ease-in-out infinite alternate; }
+    @keyframes scanLine { from { transform:translateY(-90px); } to { transform:translateY(90px); } }
     #reader__scan_region { min-height:260px; background:#000 !important; }
     #reader__dashboard { display:none !important; }
     .scanner-placeholder { min-height:280px; display:grid; place-items:center; text-align:center; border:2px dashed rgba(229,9,20,.6); border-radius:16px; background:#08080a; padding:24px; }
@@ -277,7 +284,12 @@
 
   let backendUrl = localStorage.getItem(STORAGE_KEY) || '';
   let bridgeReady = false;
-  let html5QrCode = null;
+  let cameraStream = null;
+  let scanVideo = null;
+  let scanCanvas = null;
+  let scanContext = null;
+  let scanRaf = null;
+  let lastFrameScanAt = 0;
   let scannerRunning = false;
   let processingScan = false;
   let mode = 'QR';
@@ -286,6 +298,22 @@
   let lastDecodedAt = 0;
 
   window.addEventListener('DOMContentLoaded', function () {
+    // Jika scanner dibuka dari menu Pengaturan Scanner di aplikasi admin,
+    // backend Apps Script dikirim otomatis melalui query ?backend=...
+    try {
+      const incomingBackend = new URLSearchParams(window.location.search).get('backend');
+      if (incomingBackend) {
+        const normalized = normalizeBackendUrl(incomingBackend);
+        if (!/\/exec$/i.test(normalized)) throw new Error('Backend harus URL deployment /exec.');
+        backendUrl = normalized;
+        localStorage.setItem(STORAGE_KEY, backendUrl);
+        const cleanUrl = window.location.origin + window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch (e) {
+      console.warn('Backend URL dari admin tidak dapat dipakai:', e);
+    }
+
     updateClock();
     setInterval(updateClock, 1000);
     document.getElementById('memberCodeInput').addEventListener('keydown', function (e) {
@@ -466,53 +494,78 @@
       showMessage('Browser ini tidak menyediakan akses kamera live. Gunakan Chrome/Safari terbaru.', 'error');
       return;
     }
-    if (!window.Html5Qrcode) {
-      showMessage('Library QR scanner belum termuat. Periksa internet lalu refresh halaman.', 'error');
+    if (!window.jsQR) {
+      showMessage('Mesin pembaca QR belum termuat. Pastikan internet aktif lalu refresh halaman.', 'error');
       return;
     }
 
     setMode('QR');
     document.getElementById('readerPlaceholder').style.display = 'none';
-    document.getElementById('reader').style.display = 'block';
+    const reader = document.getElementById('reader');
+    reader.style.display = 'block';
+    reader.innerHTML = '<div class="live-reader-wrap"><video id="liveQrVideo" autoplay muted playsinline></video><div class="scan-guide"><div class="scan-guide-box"></div></div></div><canvas id="liveQrCanvas" style="display:none"></canvas>';
     document.getElementById('startBtn').disabled = true;
     document.getElementById('stopBtn').disabled = false;
-    showMessage('Meminta izin kamera belakang HP...', 'info');
+    showMessage('Membuka kamera belakang dan menyiapkan pembaca QR...', 'info');
 
     try {
-      html5QrCode = html5QrCode || new Html5Qrcode('reader', {
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-        verbose: false
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
       });
 
-      await html5QrCode.start(
-        { facingMode: 'environment' },
-        {
-          fps: 12,
-          qrbox: function (viewfinderWidth, viewfinderHeight) {
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const edge = Math.floor(Math.min(280, minEdge * 0.72));
-            return { width: edge, height: edge };
-          },
-          aspectRatio: 1.0,
-          disableFlip: false
-        },
-        onQrDecoded,
-        function () { /* scan miss sengaja diabaikan */ }
-      );
+      scanVideo = document.getElementById('liveQrVideo');
+      scanCanvas = document.getElementById('liveQrCanvas');
+      scanContext = scanCanvas.getContext('2d', { willReadFrequently: true });
+      scanVideo.srcObject = cameraStream;
+      await scanVideo.play();
 
       scannerRunning = true;
       restartAfterFinish = true;
-      showMessage('Kamera aktif. Arahkan QR kartu member ke kotak scanner.', 'success');
+      lastFrameScanAt = 0;
+      showMessage('Kamera aktif. Arahkan QR ke dalam kotak merah dan tahan 1–2 detik.', 'success');
+      scanRaf = requestAnimationFrame(scanQrFrame);
     } catch (e) {
-      scannerRunning = false;
-      document.getElementById('reader').style.display = 'none';
-      document.getElementById('readerPlaceholder').style.display = 'grid';
-      document.getElementById('startBtn').disabled = false;
-      document.getElementById('stopBtn').disabled = true;
+      await stopScannerInternal();
       const msg = String((e && e.message) || e || 'Kamera tidak dapat dibuka.');
-      showMessage('Kamera live gagal dibuka: ' + msg + '. Periksa Site settings → Camera → Allow untuk halaman GitHub Pages ini.', 'error');
+      showMessage('Kamera live gagal dibuka: ' + msg + '. Periksa Site settings → Camera → Allow.', 'error');
     }
   };
+
+  function scanQrFrame(ts) {
+    if (!scannerRunning || !scanVideo || !scanContext || processingScan) return;
+
+    scanRaf = requestAnimationFrame(scanQrFrame);
+    // 8–10 decode/detik cukup cepat dan lebih ringan untuk HP.
+    if (ts - lastFrameScanAt < 110) return;
+    lastFrameScanAt = ts;
+    if (scanVideo.readyState < 2 || !scanVideo.videoWidth || !scanVideo.videoHeight) return;
+
+    try {
+      const vw = scanVideo.videoWidth;
+      const vh = scanVideo.videoHeight;
+      const maxWidth = 960;
+      const scale = Math.min(1, maxWidth / vw);
+      const w = Math.max(1, Math.round(vw * scale));
+      const h = Math.max(1, Math.round(vh * scale));
+      if (scanCanvas.width !== w || scanCanvas.height !== h) {
+        scanCanvas.width = w;
+        scanCanvas.height = h;
+      }
+      scanContext.drawImage(scanVideo, 0, 0, w, h);
+      const imageData = scanContext.getImageData(0, 0, w, h);
+      const code = window.jsQR(imageData.data, w, h, { inversionAttempts: 'attemptBoth' });
+      if (code && code.data) {
+        onQrDecoded(String(code.data).trim());
+      }
+    } catch (err) {
+      console.warn('QR frame decode error:', err);
+    }
+  }
 
   window.stopLiveScanner = async function () {
     restartAfterFinish = false;
@@ -520,12 +573,29 @@
   };
 
   async function stopScannerInternal() {
-    if (html5QrCode && scannerRunning) {
-      try { await html5QrCode.stop(); } catch (e) { /* ignore */ }
-      try { await html5QrCode.clear(); } catch (e) { /* ignore */ }
-    }
     scannerRunning = false;
-    document.getElementById('reader').style.display = 'none';
+    if (scanRaf) {
+      cancelAnimationFrame(scanRaf);
+      scanRaf = null;
+    }
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(function (track) {
+        try { track.stop(); } catch (e) { /* ignore */ }
+      });
+      cameraStream = null;
+    }
+    if (scanVideo) {
+      try { scanVideo.pause(); } catch (e) { /* ignore */ }
+      scanVideo.srcObject = null;
+    }
+    scanVideo = null;
+    scanCanvas = null;
+    scanContext = null;
+    lastFrameScanAt = 0;
+
+    const reader = document.getElementById('reader');
+    reader.innerHTML = '';
+    reader.style.display = 'none';
     document.getElementById('readerPlaceholder').style.display = 'grid';
     document.getElementById('startBtn').disabled = !bridgeReady;
     document.getElementById('stopBtn').disabled = true;
