@@ -297,6 +297,21 @@
 
   let backendUrl = localStorage.getItem(STORAGE_KEY) || '';
   let bridgeReady = false;
+  let bridgeWindow = null;
+  let bridgeOrigin = '';
+  let bridgeTimeout = null;
+  let bridgeFrameDidLoad = false;
+
+  function isTrustedGoogleBridgeOrigin(origin) {
+    try {
+      const url = new URL(origin);
+      const hostname = url.hostname.toLowerCase();
+      return url.protocol === 'https:' &&
+        (hostname === 'script.google.com' ||
+         hostname === 'script.googleusercontent.com' ||
+         hostname.endsWith('.googleusercontent.com'));
+    } catch (e) { return false; }
+  }
   let cameraStream = null;
   let scanVideo = null;
   let scanCanvas = null;
@@ -352,13 +367,23 @@
   window.addEventListener('message', function (event) {
     const data = event.data || {};
     if (data.source !== BRIDGE_SOURCE) return;
+    // Hanya terima Bridge dari domain Google; jangan percaya pesan sembarang situs.
+    if (!isTrustedGoogleBridgeOrigin(event.origin)) return;
 
     if (data.type === 'READY') {
+      if (!event.source || bridgeReady) return;
+      // READY dapat berasal dari iframe HTML Service internal Google.
+      // Balasan HARUS dikirim langsung ke sumber READY ini, bukan ke
+      // iframe.contentWindow, karena konten Bridge ada di iframe bersarang.
+      bridgeWindow = event.source;
+      bridgeOrigin = event.origin;
       bridgeReady = true;
+      if (bridgeTimeout) clearTimeout(bridgeTimeout);
       pingBackend();
       return;
     }
 
+    if (!bridgeReady || !bridgeWindow || event.source !== bridgeWindow) return;
     if (!data.requestId || !pending.has(data.requestId)) return;
     const task = pending.get(data.requestId);
     pending.delete(data.requestId);
@@ -413,18 +438,29 @@
 
   function connectBridge() {
     bridgeReady = false;
+    bridgeWindow = null;
+    bridgeOrigin = '';
+    bridgeFrameDidLoad = false;
+    autoStartAttempted = false;
+    if (bridgeTimeout) clearTimeout(bridgeTimeout);
+    pending.forEach(function (p) {
+      clearTimeout(p.timer);
+      p.reject(new Error('Koneksi bridge diatur ulang.'));
+    });
+    pending.clear();
     setBackendStatus('warn', 'Menghubungkan backend...');
     const iframe = document.getElementById('gasBridge');
+    iframe.onload = function () { bridgeFrameDidLoad = true; };
     iframe.src = 'about:blank';
-    setTimeout(function () {
-      iframe.src = bridgeUrl();
-    }, 50);
-    setTimeout(function () {
+    setTimeout(function () { iframe.src = bridgeUrl(); }, 80);
+    bridgeTimeout = setTimeout(function () {
       if (!bridgeReady) {
-        setBackendStatus('bad', 'Backend belum tersambung');
-        showMessage('Bridge Apps Script tidak merespons. Pastikan deployment terbaru sudah memakai Bridge.html dan URL /exec benar.', 'error');
+        setBackendStatus('bad', 'Bridge tidak merespons');
+        showMessage(bridgeFrameDidLoad
+          ? 'Bridge dimuat tetapi tidak mengirim READY. Periksa Bridge.html terbaru dan pembatasan iframe browser.'
+          : 'Bridge tidak dapat dimuat. Periksa izin deployment /exec atau blokir iframe browser.', 'error');
       }
-    }, 12000);
+    }, 16000);
   }
 
   function makeRequestId() {
@@ -437,9 +473,8 @@
         reject(new Error('Backend belum tersambung. Buka Pengaturan dan masukkan URL Apps Script.'));
         return;
       }
-      const iframe = document.getElementById('gasBridge');
-      if (!iframe.contentWindow) {
-        reject(new Error('Bridge backend belum siap.'));
+      if (!bridgeWindow) {
+        reject(new Error('Bridge belum mengirim identitas jendela untuk komunikasi.'));
         return;
       }
       const requestId = makeRequestId();
@@ -450,12 +485,12 @@
         }
       }, 20000);
       pending.set(requestId, { resolve: resolve, reject: reject, timer: timer });
-      iframe.contentWindow.postMessage({
+      bridgeWindow.postMessage({
         source: SCANNER_SOURCE,
         requestId: requestId,
         action: action,
         payload: payload || {}
-      }, '*');
+      }, bridgeOrigin);
     });
   }
 
